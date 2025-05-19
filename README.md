@@ -42,6 +42,7 @@ A fully functioning compiler in Node.js for the language _FireScript_, that comp
 **Assignment**:
 
 `x = 10;`
+
 **Arithmetic**:
 
 `y = x + 5;`
