@@ -46,30 +46,39 @@ A fully functioning compiler in Node.js for the language _FireScript_, that comp
 **Arithmetic**:
 
 `y = x + 5;`
+
 `z = y * 2;`
 
 **If Statement**:
 
-`if(x > 5) {
-    // code
-}`
+`if(x > 5) {`
+
+    `// code`
+    
+`}`
 
 **While Loop***:
 
-`while(x < 10) {
-    // code
-}`
+`while(x < 10) {`
+
+    `// code`
+    
+`}`
 
 **For Loop (transformed to while)**:
 
-`for(int8 i=0; i<10; i++) {
-    // code
-}`
+`for(int8 i=0; i<10; i++) {`
+
+    `// code`
+    
+`}`
 
 **Output**:
 
 `str_out("Hello");
+
 push_str;
+
 num_out(42);
 `
 
@@ -80,9 +89,13 @@ num_out(42);
 **String (Char-Seq) Handling:**
 
 `str_out("ABC");
+
 push_str;`
 
 **Functions (no in no out, use variables until adedd):**
+
 `do_func name {
+
 	//code here
+ 
 }`
