@@ -33,69 +33,69 @@ A fully functioning compiler in Node.js for the language _FireScript_, that comp
 
 **Memory Management**: Automatic memory allocation for variables
 
-## Syntax Examples:
+## Syntax Examples
 
-**Variable Declaration**:
+### Variable Declaration  
+```
+int8 x = 5;
+```
 
-`int8 x = 5;`
+### Assignment  
+```
+x = 10;
+```
 
-**Assignment**:
+### Arithmetic  
+```
+y = x + 5;
+z = y * 2;
+```
 
-`x = 10;`
+### If Statement  
+```
+if(x > 5) {
+    // code
+}
+```
 
-**Arithmetic**:
+### While Loop  
+```
+while(x < 10) {
+    // code
+}
+```
 
-`y = x + 5;`
+### For Loop (transformed to while)  
+```
+int8 i = 0;
+while(i < 10) {
+    // code
+    i++;
+}
+```
 
-`z = y * 2;`
-
-**If Statement**:
-
-`if(x > 5) {`
-
-    `// code`
-    
-`}`
-
-**While Loop***:
-
-`while(x < 10) {`
-
-    `// code`
-    
-`}`
-
-**For Loop (transformed to while)**:
-
-`for(int8 i=0; i<10; i++) {`
-
-    `// code`
-    
-`}`
-
-**Output**:
-
-`str_out("Hello");
-
+### Output  
+```
+str_out("Hello");
 push_str;
 
 num_out(42);
-`
+```
 
-**Inline Assembly (Not that usefull)**:
+### Inline Assembly (Not that useful)  
+```
+$MOV r1 r2;
+```
 
-`$MOV r1 r2;`
+### String (Char-Seq) Handling  
+```
+str_out("ABC");
+push_str;
+```
 
-**String (Char-Seq) Handling:**
-
-`str_out("ABC");
-
-push_str;`
-
-**Functions (no in no out, use variables until adedd):**
-
-`do_func name {
-
-	//code here
- 
-}`
+### Functions (no in no out, use variables until added)  
+```
+do_func name {
+    // code here
+}
+```
