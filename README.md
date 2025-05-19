@@ -77,7 +77,7 @@ num_out(42);
 
 `$MOV r1 r2;`
 
-**String (Char-Seq) Handling:/88
+**String (Char-Seq) Handling:**
 
 `str_out("ABC");
 push_str;`
