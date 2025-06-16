@@ -1,3 +1,5 @@
+var cleanCode = true; //Keep comments, indents, and newlines in assembly?
+var alsoRemoveNewlines = false;
 /*
 
 Big summary by deepseek:
@@ -7,8 +9,10 @@ Big summary by deepseek:
 Language Features:
 Variables: Supports variables with automatic memory allocation
 
-Arithmetic Operations: Addition (+), subtraction (-), multiplication (*)
 
+
+
+Arithmetic Operations: Addition (+), subtraction (-), multiplication (*)
 Control Flow:
 
 If statements with comparisons (>, <, >=, <=, ==, !=)
@@ -16,14 +20,9 @@ If statements with comparisons (>, <, >=, <=, ==, !=)
 While loops
 
 For loops (which get transformed into while loops during compilation)
+g output (str_out)
 
-I/O Operations:
-
-String output (str_out)
-
-Numeric output (num_out)
-
-Low-level Access: Can embed raw assembly code using $ prefix
+ assembly code using $ prefix
 
 Comments: Single-line comments with //
 
@@ -73,6 +72,7 @@ Functions (no return no input, use variables until adedd):
 do_func name {
 	code here
 }
+
 */
 
 
@@ -125,6 +125,7 @@ fire = lines.join("\n");
 console.log("infix transformation begin.");
 console.log(fire);
 fire = infixProcesser.splitCode(fire);
+console.log("DONE");
 console.log(fire);
 lines = fire.split("\n");
 console.log("infix transformation end.");
@@ -133,7 +134,8 @@ var result = `
 LDI r15 clear_chars_buffer
 STR r15 r0
 define end_char 255
-LDI r0 0 //IG its redundant, but who cares about 1/500 of a second?
+LDI r0 0 //IK its redundant, but who cares about 1/500 of a second?
+//Answer: coder from 1950
 //Gets r2th bit of r1
 JMP .BIF_getbit_end
 .BIF_getbit
@@ -230,7 +232,7 @@ function insertSubstr(str, index, substr) {
 }
 
 // Special characters and token processing.
-const specialChars = ["call", "for", "do_func ", "while", "push_str", "str_out", "num_out", "=", "$", "int8 ", "+", "-", "*", "if", ">=", "<", "=", "!=", "<=", ">", "//"];
+const specialChars = ["/*JS*/", "return", "func", "delete", "for", "do_func ", "while", "push_str", "str_out", "num_out", "=", "$", "int8 ", "+", "-", "*", "if", ">=", "<", "=", "!=", "<=", ">", "//"];
 
 function getSpecialChars(str) {
 	let res = [];
@@ -274,12 +276,58 @@ function andArrays(arr1, arr2) {
 }
 
 // Memory management
-var alloced = [0]; // IDs of used memIDs
+var alloced = [0,1,2,3,4,5,6,7,8]; // IDs of used memIDs
 var variables = {
-	"test": {
+	//Placeholder vars, aren't supposed to be changed unless in function calls
+	
+	"_arg_slot_0": {
 		location: 0
-	} // memloc 0 is test var
+	},
+	"_arg_slot_1": {
+		location: 1
+	},
+	"_arg_slot_2": {
+		location: 2
+	},
+	"_arg_slot_3": {
+		location: 3
+	},
+	"_arg_slot_4": {
+		location: 4
+	},
+	"_arg_slot_5": {
+		location: 5
+	},
+	"_arg_slot_6": {
+		location: 6
+	},
+	"_arg_slot_7": {
+		location: 7
+	},
+	"_return_slot": {
+		location: 8
+	}
+
+	
 };
+
+var currentFunctionName = ""
+
+var functions = {
+	"test": {
+		args: 3,
+	}
+};
+
+function renameVar(original, renamed){
+	original = original.trim();
+	renamed = renamed.trim();
+	
+	var loc = variables[original].location;
+	delete variables[original];
+	variables[renamed] = {location: loc};
+}
+
 var curTagName = 0;
 
 function getNewMemId() {
@@ -330,6 +378,7 @@ function transformForLoops() {
 			line = line.replace(")", ";");
 			line = line.replace("(", ";");
 			var parts = line.split(";");
+			console.log(parts)
 			var varDecl = parts[1].trim();
 			var condition = parts[2].trim();
 			var incStatement = parts[3].trim();
@@ -362,14 +411,20 @@ function processLine(line, lineNumber) {
 		//this is a new line of the ORIGINAL marked by the compiler so errors are better
 		actualLineNumber++;
 		lineRes = "//Newline"
-	} else if (getSpecialChars(line).includes("//")) {
-		return `
-/// ${line}
-`
+    } else if (getSpecialChars(line).includes("/*JS*/")) {
+        lineRes = eval(line) || `\n//JS executed with no return\n`
+    } else if (getSpecialChars(line).includes("//")) {
+		return `\n${line}\n`
 	} else if (getSpecialChars(line).toString() == ["="].toString()) {
 		lineRes = processAssignment(line);
-	} else if (getSpecialChars(line).includes("int8 ")) {
+	} else if (getSpecialChars(line).includes("return")) {
+		lineRes = processReturn(line);
+	} else if (getSpecialChars(line).includes("delete") && !getSpecialChars(line).includes("\"")) {
+		lineRes = processDelete(line);
+	} else if (getSpecialChars(line).includes("int8 ") && !getSpecialChars(line).includes("\"")) {
 		lineRes = processInt8(line);
+	} else if (getSpecialChars(line).includes("func") && !getSpecialChars(line).includes("\"")) {
+		lineRes = processFunc(line);
 	} else if (getSpecialChars(line).includes("+")) {
 		lineRes = processAddition(line);
 	} else if (getSpecialChars(line).includes("-")) {
@@ -378,18 +433,18 @@ function processLine(line, lineNumber) {
 		lineRes = processMultiplication(line);
 	} else if (getSpecialChars(line).includes("do_func ") && !getSpecialChars(line).includes("\"")) {
 		lineRes = processDoFunc(line);
-	} else if (getSpecialChars(line).includes("call") && !getSpecialChars(line).includes("\"")) {
-		lineRes = processCall(line);
+	} else if (getSpecialChars(line).includes("do_call") && !getSpecialChars(line).includes("\"")) {
+		lineRes = processDoCall(line);
 	} else if (getSpecialChars(line).includes("if") && !getSpecialChars(line).includes("\"")) {
 		lineRes = processIfStatement(line);
 	} else if (getSpecialChars(line).includes("str_out")) {
 		lineRes = processStringOutput(line);
-	} else if (getSpecialChars(line).includes("num_out")) {
+	} else if (getSpecialChars(line).includes("num_out") && !getSpecialChars(line).includes("\"")) {
 		lineRes = processNumberOutput(line);
 	} else if (line === "push_str") {
 		lineRes = processPushString();
 	} else if (line === "}") {
-		console.log("\n\n\nHmm, i detected a }, which is not hr2^2 (Meme):\n\nUncaught BrainError: unexpected char: '}'\n on line " + actualLineNumber + "\n\n" + fire);
+		console.log("\n\n\nHmm, i detected a }, which is not hr2^2 (Meme):\n\nUncaught BrainError: unexpected char: '}'\n on line " + actualLineNumber + "\n\n" + fire + "\n\n yOu SuCk!!!!!!!!!");
 		process.exit(1);
 	} else if (line[0] == "$") {
 		lineRes = processAssemblyCode(line);
@@ -406,7 +461,25 @@ function processAssignment(line) {
 	var val = line.split("=")[1].trim();
 	var varLocation = variables[varName].location;
 	console.log(isNumber(val), val, "ASSIGN")
-	if (isNumber(val)) {
+	if(val.includes("call")){
+		
+		var res = ""
+		var args = val.split(" ");
+		// start at i = 2, excluding 'call' and func name
+		for(var i=2; i<args.length; i++){
+			res += `
+${processAssignment("_arg_slot_"+(i-2)+"="+args[i])}
+`
+		}
+		res += `
+CAL .opening${args[1]}
+
+//Now that we executed the func, load '_return_slot' to '${varName}'
+
+${processAssignment(varName + " = _return_slot")}
+`
+		return res;
+	} else if (isNumber(val)) {
 		return `
 //Set the variable ${varName} to ${val}, with memloc ${varLocation}
 LDI r1 ${val}
@@ -418,11 +491,13 @@ STR r12 r1
 		valLocation = variables[val].location;
 
 		return `
-//Set the variable ${varName} to ${val}, with memloc ${varLocation}
+//Set the variable ${varName} (ml ${varLocation}) to ${val} (ml ${valLocation})
 LDI r1 ${valLocation}
 LDI r12 ${varLocation}
 LOD r1 r2 0 //Load the assigned variable from memory.
 STR r12 r2 //Write that val from r2
+
+
 `;
 	}
 }
@@ -480,7 +555,8 @@ LOD r12 r4 0 //Get the variable ${expressionVal2} and write/load it to r3
 	res += `
 ADD r3 r4 r2 //add regs r3 and r4 and write it to r2
 //Set the variable ${writingVarName} to the result, with memloc ${writingVarLocation}
-STR r0 r2 ${writingVarLocation}
+LDI r12 ${writingVarLocation}
+STR r12 r2 0
 `;
 	return res;
 }
@@ -524,7 +600,8 @@ LOD r12 r4 0 //Get the variable ${expressionVal2} and write/load it to r3
 	res += `
 SUB r3 r4 r2 //add regs r3 and r4 and write it to r2
 //Set the variable ${writingVarName} to the result, with memloc ${writingVarLocation}
-STR r0 r2 ${writingVarLocation}
+LDI r12 ${writingVarLocation}
+STR r12 r2
 `;
 	return res;
 }
@@ -534,6 +611,7 @@ function processMultiplication(line) {
 		console.log("Err line " + i);
 		process.exit(1);
 	}
+
 
 	var writingVarName = line.split("=")[0].trim();
 	var writingVarLocation = variables[writingVarName].location;
@@ -548,7 +626,7 @@ function processMultiplication(line) {
 	} else {
 		var expressionVal1ID = variables[expressionVal1].location;
 		res += `
-LDI r12 ${expressionVal2ID}
+LDI r12 ${expressionVal1ID}
 LOD r12 r1 0 //Get the variable ${expressionVal1} and write/load it to r1
 `;
 	}
@@ -567,7 +645,8 @@ LOD r12 r2 0 //Get the variable ${expressionVal2} and write/load it to r2
 CAL .BIF_mult
 MOV r3 r2
 //Set the variable ${writingVarName} to the result, with memloc ${writingVarLocation}
-STR r0 r2 ${writingVarLocation}
+LDI r12 ${writingVarLocation}
+STR r12 r2 0
 `;
 	return res;
 }
@@ -592,7 +671,7 @@ function processDoFunc(line) {
 	}
 
 	res += `
-JMP .closingFunc${funcName}
+JMP .closingDoFunc${funcName}
 .opening${funcName}
 
 `
@@ -610,7 +689,7 @@ JMP .closingFunc${funcName}
 	fire = fire.splice(closingIndex, 1);
 	fire = insertSubstr(fire, closingIndex, `
 $RET
-$.closingFunc${funcName}
+$.closingDoFunc${funcName}
 `);
 
 	curTagName++;
@@ -618,7 +697,90 @@ $.closingFunc${funcName}
 	return res;
 }
 
-function processCall(line) {
+function processFunc(line) {
+	// Syntax
+	//func name (args) {
+	//	-- code --
+	//}
+	
+	//Add the extra space in between the funcName and (
+	line = line.replaceAll(" (", "(")
+	line = line.replaceAll("(", " (")
+	lines[lineNumber] = line;
+	fire = lines.join('\n')
+	var res = "";
+	//Converts to
+	//func name : ags :
+	var coloned = line.replaceAll("{", "").replaceAll(/[\(\)]/g, ":");
+	var funcName = line.split(" ")[1];
+	currentFunctionName = funcName;
+	var argsStr = coloned.split(":")[1];
+	var argNames = infixProcesser.splitWithParentheses(argsStr);
+	var argsNum = argNames.length;
+	functions[funcName] = {
+		args: argsNum,
+	}
+	for(var i=0;i<argsNum;i++){
+		res += `
+//Just renamed ${"_arg_slot_"+i} to ${argNames[i]}
+`
+		renameVar("_arg_slot_"+i, argNames[i]);
+	}
+	// === Get bracket index in full fire string ===
+	var bracketIndexInLine = line.indexOf("{");
+	var bracketIndexInFire = bracketIndexInLine;
+	for (var i = 0; i < lineNumber; i++) {
+		bracketIndexInFire += lines[i].length + 1; // include \n
+	}
+
+	res += `
+JMP .closingFunc${funcName}
+.opening${funcName}
+
+`
+
+
+	// === Find and replace matching closing brace ===
+	var closingIndex = getOppositeBracket(fire, bracketIndexInFire);
+
+	// Remove the '{'
+	fire = fire.splice(bracketIndexInFire, 1);
+	// Adjust closingIndex since we removed a char.
+	closingIndex--;
+	//Long var name IK
+	var fullInsertedSubstrAtClosingIndex = `
+$RET
+$.closingFunc${funcName}
+/*JS*/ currentFunctionName = ""
+`
+	for(var i=0;i<argNames.length;i++){
+		//Comments in strings be like:
+		fullInsertedSubstrAtClosingIndex += `
+//Rename the vars back to _arg_slot_${i}
+/*JS*/renameVar("${argNames[i]}", "${"_arg_slot_"+i}");
+`
+		//The /*JS*/ beginning means that the next code is JAVASCRIPT, not firescript or assembly
+	}
+
+	fire = fire.splice(closingIndex, 1);
+	fire = insertSubstr(fire, closingIndex, fullInsertedSubstrAtClosingIndex);
+
+	curTagName++;
+	lines = fire.split("\n"); // update lines to reflect new fire
+	return res;
+}
+
+function processReturn(line){
+	var cut = line.split(" ");
+	var returned = cut[1];
+	return `
+//Set the return slot to the returned value
+${processAssignment('_return_slot = ' + returned)}
+RET //Pop the CS (in the field of CS *_*)
+`
+}
+
+function processDoCall(line) {
 	//Syntax: call funcName
 	var funcName = line.split(" ")[1];
 	return `
@@ -777,7 +939,7 @@ STR r15 r14`;
 	return res;
 }
 
-function processDeleteVar(line) {
+function processDelete(line) {
 	var varName = line.split(" ")[1];
 	var loc = variables[varName].location;
 	alloced = alloced.filter(x => x !== loc)
@@ -834,7 +996,6 @@ function processWhileLoop(line) {
 		conditionSign = andArrays(getSpecialChars(line), [">", "<="])[0].trim();
 	}
 
-	console.log(conditionSign + " " + isSpecialCondition);
 	var leftSide = condition.split(conditionSign)[0].trim();
 	var rightSide = condition.split(conditionSign)[1].trim();
 
@@ -908,7 +1069,6 @@ $.closingWHILE${curTagName}
 }
 
 // Main execution
-
 function main() {
 	var lines = fire.split("\n");
 
@@ -918,6 +1078,7 @@ function main() {
 	// Process each line
 	for (lineNumber = 0; lineNumber < lines.length; lineNumber++) {
 		var lineRes = processLine(lines[lineNumber], lineNumber);
+
 		result += lineRes + "\n";
 		lines = fire.split("\n");
 
@@ -925,6 +1086,33 @@ function main() {
 	}
 
 	result += `HLT\n`;
+
+	
+
+
+	//dirtify the code
+	if (!cleanCode) {
+		var resLines = result.split("\n");
+		var newLines = [];
+
+		for (var i = 0; i < resLines.length; i++) {
+			var line = resLines[i];
+			// Remove comments
+			if (line.includes("//")) {
+				line = line.split("//")[0].trim();
+			} else {
+				line = line.trim();
+			}
+
+			if (line !== "" || !alsoRemoveNewlines) {
+				newLines.push(line);
+			}
+		}
+
+		result = newLines.join("\n");
+	}
+
+	
 	console.log(fire + "\n\n");
 	console.log(result);
 }
