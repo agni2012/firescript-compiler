@@ -61,76 +61,81 @@ function splitWithParentheses(str, char){
 	return [...arr, curArg];
 }
 
+
 function buildTree(expr, opGroups /* Optional */) {
-	if(expr[0] === "(" && getOppositeBracket(expr, 0) === expr.length-1){
-		expr = expr.slice(1, -1);
-	}
-	var newExpr = "";
-	var pchar = "";
+    // strip outer parentheses
+    if (expr[0] === "(" && getOppositeBracket(expr, 0) === expr.length - 1) {
+        expr = expr.slice(1, -1);
+    }
+    // handle unary minus
+    var newExpr = "";
+    var pchar = "";
+    for (var i = 0; i < expr.length; i++) {
+        var char = expr[i];
+        if (char === "-" && (i === 0 || ["(", "+", "-", "*", "/"].includes(pchar))) {
+            newExpr += "0-";
+        } else {
+            newExpr += char;
+        }
+        pchar = char;
+    }
+    expr = newExpr;
 
-	for (var i = 0; i < expr.length; i++) {
-		var char = expr[i];
+    // operator precedence groups
+    var opGroups = opGroups || [
+        ["+", "-"],
+        ["*", "/"]
+    ];
 
-		if (char === "-" && (i === 0 || ["(", "+", "-", "*", "/"].includes(pchar))) {
-			newExpr += "0-"; // Insert 0-
-		} else {
-			newExpr += char;
-		}
+    // parse binary operators by precedence
+    for (var operators of opGroups) {
+        var depth = 0;
+        for (var ci = 0; ci < expr.length; ci++) {
+            var char = expr[ci];
+            if (char === "(") {
+                depth++;
+                continue;
+            }
+            if (char === ")") {
+                depth--;
+                continue;
+            }
+            if (operators.includes(char) && depth === 0) {
+                return {
+                    operator: char,
+                    leftSide: buildTree(expr.slice(0, ci)),
+                    rightSide: buildTree(expr.slice(ci + 1))
+                };
+            }
+        }
+    }
 
-		pchar = char;
-	}
-	expr = newExpr;
+    // BASE CASE: no operators left
+    expr = expr.trim();
 
-	// Operator groups by precedence: lowest to highest
-	var opGroups = opGroups || [
-		["+", "-"],
-		["*", "/"]
-	];
-	//Is a function call?
-	
-	if(/^[A-Za-z0-9_%@]+\(/.test(expr)){
-		var openParenIndex = expr.indexOf("(");
-		var closeParenIndex = getOppositeBracket(expr, openParenIndex);
-		//Eliminate cases like f(x)+1
-		if(closeParenIndex === expr.length-1){
-			var argsStr = expr.slice(openParenIndex+1, closeParenIndex);
-			var args = splitWithParentheses(argsStr);
-			var funcName = expr.split("(")[0];
-			return {
-				operator: funcName,
-				//Build tree for EVERY argument
-				arguments: args.map(arg => buildTree(arg.trim(), opGroups))
-			};
-		}
-	}
-	
-	for(var operators of opGroups){
-		var depth = 0;
-		for(var ci=0;ci<expr.length;ci++){
-			var char = expr[ci];
-			//Keep track of depth
-			if(char === "("){
-				depth++;
-				continue;
-			}
-			if(char === ")"){
-				depth--;
-				continue;
-			}
-			
-			
-			if(operators.includes(char) && depth === 0){
-				return {
-					operator: char,
-					leftSide: buildTree(expr.slice(0, ci)),
-					rightSide: buildTree(expr.slice(ci+1))
-				}
-			}
-		}
-	}
-	// Base case: no operators left "x"
-	return expr.trim();
+    // if it’s exactly “funcName(arg1, arg2, …)”, parse as a call
+    if (/^[A-Za-z_][A-Za-z0-9_]*\(/.test(expr)) {
+        var openParenIndex = expr.indexOf("(");
+        var closeParenIndex = getOppositeBracket(expr, openParenIndex);
+        if (closeParenIndex === expr.length - 1) {
+            var funcName = expr.slice(0, openParenIndex);
+            var argsStr = expr.slice(openParenIndex + 1, closeParenIndex);
+            var args = splitWithParentheses(argsStr);
+            return {
+                operator: funcName,
+                arguments: args.map(arg => buildTree(arg.trim(), opGroups))
+            };
+        }
+    }
+
+    // otherwise it’s a plain variable/number
+    return expr;
 }
+
+
+
+
+
 var tempVarNames = [];
 var tempVarCounter = 0;
 function genTempVarName(){
@@ -155,29 +160,43 @@ delete ${tempVarNames[i]}
 var res = "";
 
 function processTree(tree) {
-    res = "";  // Reset res each time processTree is called
+	res = "";  // Reset res each time processTree is called
 
-    function recurse(node) {
-        if (typeof node === "string") {
-            return node;
-        }
+	function recurse(node) {
+		if (typeof node === "string") {
+			return node;
+		}
 
-        var oper = node.operator;
-        var ls = recurse(node.leftSide);
-        var rs = recurse(node.rightSide);
+		// Handle function calls
+		if (node.arguments) {
+			var argNames = [];
+			for (var i = 0; i < node.arguments.length; i++) {
+				argNames.push(recurse(node.arguments[i]));
+			}
 
-        var tempVarName = genTempVarName();
-        //note theres no semicolon because theyre supposed to be removed
-        res += "int8 " + tempVarName + " = 0\n";
-        res += tempVarName + " = " + ls + " " + oper + " " + rs + "\n";
+			var tempVarName = genTempVarName();
+			res += "int8 " + tempVarName + " = 0\n";
+			res += tempVarName + " = call " + node.operator + " " + argNames.join(" ") + "\n";
+			return tempVarName;
+		}
 
-        return tempVarName;
-    }
+		// Handle binary operators
+		var oper = node.operator;
+		var ls = recurse(node.leftSide);
+		var rs = recurse(node.rightSide);
 
-    var final = recurse(tree);
+		var tempVarName = genTempVarName();
+		res += "int8 " + tempVarName + " = 0\n";
+		res += tempVarName + " = " + ls + " " + oper + " " + rs + "\n";
 
-    return {res: res, resultName: final};
+		return tempVarName;
+	}
+
+	var final = recurse(tree);
+
+	return { res: res, resultName: final };
 }
+
 
 function splitCode(fire){
 	var lines = fire.split("\n");
@@ -186,7 +205,7 @@ function splitCode(fire){
 	for(var i=0;i<lines.length;i++){
 		var line = lines[i];
 		///If line contains a + - * = < or > but NOT a if/while* /
-		if (/[+\-*/=<>]/.test(line) && !/if|while/.test(line)) {
+		if (/[+\-*/=<>]/.test(line) && !/if|while|for/.test(line)) {
 			//Creating a variable
 			//Assigning a var.
 			if(/int8/.test(line)){
@@ -195,7 +214,7 @@ function splitCode(fire){
 				var tree = buildTree(expr);
 				var compiled = processTree(tree);
 				newFire += `
-int8 ${varName} = 0;
+int8 ${varName} = 0
 
 ${compiled.res}
 
@@ -222,7 +241,9 @@ ${varName} = ${compiled.resultName}
 
 module.exports = {
 	buildTree: buildTree,
-	splitCode: splitCode
+	splitCode: splitCode,
+	splitWithParentheses: splitWithParentheses,
 }
-
-
+console.log(buildTree(`
+f(e)
+`))
